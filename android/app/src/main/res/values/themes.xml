@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DownloadOS" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:colorAccent">@color/gold</item>
+        <item name="android:colorPrimary">@color/gold</item>
+        <item name="android:textColorPrimary">@color/text</item>
+    </style>
+
+    <color name="bg">#0A0A0E</color>
+    <color name="card">#15151C</color>
+    <color name="gold">#D4AF37</color>
+    <color name="text">#F2F2F5</color>
+</resources>

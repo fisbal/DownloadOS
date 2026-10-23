@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- thin gold ring -->
+    <path android:strokeColor="#D4AF37" android:strokeAlpha="0.55" android:strokeWidth="1.6"
+        android:fillColor="#00000000"
+        android:pathData="M54,22a32,32 0,1 1,-0.01 0z" />
+    <!-- download arrow -->
+    <path android:fillColor="#F0CF5A"
+        android:pathData="M50,31 L58,31 L58,49 L67,49 L54,63 L41,49 L50,49 Z" />
+    <!-- tray -->
+    <path android:fillColor="#D4AF37"
+        android:pathData="M37,62 L43,62 L43,70 L65,70 L65,62 L71,62 L71,73 Q71,77 67,77 L41,77 Q37,77 37,73 Z" />
+</vector>
