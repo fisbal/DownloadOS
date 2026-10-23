@@ -109,8 +109,6 @@ final class GitHubApi {
                 }
             }
             return null;
-        } catch (IOException ioe) {
-            throw ioe;
         } catch (Exception ex) {
             throw new IOException("Bad GitHub answer: " + ex.getMessage());
         }
