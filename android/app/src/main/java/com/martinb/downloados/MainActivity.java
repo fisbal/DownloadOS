@@ -171,11 +171,18 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
         title.setTextSize(30);
         title.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         title.setLetterSpacing(0.02f);
-        titles.addView(title);
+        // One line that shrinks on small phones instead of being cut off.
+        title.setMaxLines(1);
+        title.setAutoSizeTextTypeUniformWithConfiguration(18, 30, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        titles.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
         titles.addView(label(t("MartinB OS · installe tes APK en un geste",
                 "MartinB OS · install your APKs in one tap"), 13, MUTED, false));
         header.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        TextView askBtn = iconButton("✦");
+        askBtn.setContentDescription(t("Demander à Claude", "Ask Claude"));
+        askBtn.setOnClickListener(v -> showCopilot());
+        header.addView(askBtn);
         TextView refreshBtn = iconButton("⟳");
         refreshBtn.setOnClickListener(v -> { showTab(0); refresh(); });
         header.addView(refreshBtn);
@@ -247,7 +254,12 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
         root.addView(progressPanel, ppp);
 
         showTab(0);
-        return root;
+        // Tablets and landscape: keep the content at a readable width, centred.
+        Layouts.MaxWidth frame = new Layouts.MaxWidth(this, dp(720));
+        frame.setBackgroundColor(BG);
+        frame.addView(root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        return frame;
     }
 
     private View buildAppsPanel() {
@@ -296,7 +308,7 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
         card.addView(linkInput, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        LinearLayout row = buttonRow();
+        ViewGroup row = buttonRow();
         TextView paste = pill(t("Coller", "Paste"), false);
         paste.setOnClickListener(v -> {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -415,9 +427,9 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
         return p;
     }
 
-    private LinearLayout buttonRow() {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+    /** Buttons wrap onto a second line on narrow phones instead of being squeezed. */
+    private ViewGroup buttonRow() {
+        Layouts.FlowRow row = new Layouts.FlowRow(this);
         row.setPadding(0, dp(12), 0, 0);
         return row;
     }
@@ -425,7 +437,7 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
     private LinearLayout.LayoutParams rowParams() {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
-        p.setMargins(0, 0, dp(8), 0);
+        p.setMargins(0, 0, dp(8), dp(8));
         return p;
     }
 
@@ -564,7 +576,7 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
             c.addView(d);
         }
 
-        LinearLayout row = buttonRow();
+        ViewGroup row = buttonRow();
         String main = !installed ? t("Installer", "Install")
                 : !upToDate ? t("Mettre à jour", "Update") : t("Réinstaller", "Reinstall");
         TextView mainBtn = pill(main, !installed || !upToDate);
@@ -934,7 +946,7 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
             String meta = Formatter.formatShortFileSize(this, f.length())
                     + (info != null ? "  ·  " + info.packageName + "  ·  " + info.versionName : "");
             c.addView(label(meta, 12, MUTED, false));
-            LinearLayout row = buttonRow();
+            ViewGroup row = buttonRow();
             TextView inst = pill(t("Installer", "Install"), true);
             inst.setOnClickListener(v -> startInstall(f, f.getName().replaceAll("(?i)\\.apk$", ""), "", ""));
             row.addView(inst, rowParams());
@@ -988,17 +1000,33 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
         token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         box.addView(token);
 
+        final EditText claudeKey = new EditText(this);
+        claudeKey.setHint(t("Clé API Claude (pour ✦)", "Claude API key (for ✦)"));
+        claudeKey.setText(Prefs.claudeKey(this));
+        claudeKey.setSingleLine(true);
+        claudeKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
         TextView help = new TextView(this);
         help.setText(t("Sans jeton : 60 requêtes/heure, apps publiques seulement. Un jeton « fine-grained » en lecture seule permet aussi tes dépôts privés.",
                 "Without a token: 60 requests/hour, public apps only. A read-only fine-grained token also unlocks your private repos."));
         help.setTextSize(12);
         help.setPadding(0, dp(8), 0, 0);
         box.addView(help);
+        box.addView(claudeKey);
+        TextView claudeHelp = new TextView(this);
+        claudeHelp.setText(t("Ta propre clé (console.anthropic.com), gardée seulement sur ce téléphone.",
+                "Your own key (console.anthropic.com), kept on this phone only."));
+        claudeHelp.setTextSize(12);
+        claudeHelp.setPadding(0, dp(8), 0, 0);
+        box.addView(claudeHelp);
+        ScrollView boxScroll = new ScrollView(this);
+        boxScroll.addView(box);
 
         new AlertDialog.Builder(this)
                 .setTitle(t("Réglages", "Settings"))
-                .setView(box)
+                .setView(boxScroll)
                 .setPositiveButton(t("Enregistrer", "Save"), (d, w) -> {
+                    Prefs.setClaudeKey(this, claudeKey.getText().toString().trim());
                     String o = owner.getText().toString().trim();
                     if (o.isEmpty()) o = "fisbal";
                     Prefs.setOwnerAndToken(this, o, token.getText().toString().trim());
@@ -1009,6 +1037,76 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
                 })
                 .setNegativeButton(t("Annuler", "Cancel"), null)
                 .show();
+    }
+
+    // =================================================================== Claude copilot
+
+    /** "Ask Claude": help with installing, updating or a failed install, in the phone's language. */
+    private void showCopilot() {
+        String key = Prefs.claudeKey(this);
+        if (key.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Demander à Claude", "Ask Claude"))
+                    .setMessage(t("Ajoute ta clé API Claude dans ⚙ Réglages, puis touche ✦ à nouveau.",
+                            "Add your Claude API key in ⚙ Settings, then tap ✦ again."))
+                    .setPositiveButton(t("Réglages", "Settings"), (d, w) -> showSettings())
+                    .setNegativeButton("OK", null)
+                    .show();
+            return;
+        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(22), dp(8), dp(22), 0);
+        final EditText question = new EditText(this);
+        question.setHint(t("Ex. : pourquoi l'installation échoue ?", "E.g. why does the install fail?"));
+        question.setMinLines(2);
+        box.addView(question);
+        final TextView answer = label("", 14, TEXT, false);
+        answer.setTextIsSelectable(true);
+        answer.setPadding(0, dp(12), 0, dp(8));
+        box.addView(answer);
+        ScrollView sv = new ScrollView(this);
+        sv.addView(box);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(t("✦ Demander à Claude", "✦ Ask Claude"))
+                .setView(sv)
+                .setPositiveButton(t("Demander", "Ask"), null)
+                .setNegativeButton(t("Fermer", "Close"), null)
+                .create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String q = question.getText().toString().trim();
+            if (q.isEmpty()) return;
+            answer.setText(t("Claude réfléchit…", "Claude is thinking…"));
+            final String context = copilotContext();
+            new Thread(() -> {
+                String out;
+                try {
+                    out = Copilot.ask(key, context, q, fr);
+                } catch (Exception ex) {
+                    out = t("Claude n'a pas pu répondre : ", "Claude couldn't answer: ") + ex.getMessage();
+                }
+                final String text = out;
+                ui.post(() -> answer.setText(text));
+            }).start();
+        }));
+        dialog.show();
+    }
+
+    /** What Claude sees about this phone: the app list and its install state, never the tokens. */
+    private String copilotContext() {
+        StringBuilder b = new StringBuilder();
+        b.append("Android ").append(android.os.Build.VERSION.RELEASE)
+                .append(", ").append(android.os.Build.MANUFACTURER).append(' ').append(android.os.Build.MODEL)
+                .append(". Can install apps: ").append(getPackageManager().canRequestPackageInstalls())
+                .append(". GitHub account: ").append(Prefs.owner(this)).append(".\nApps:\n");
+        for (GitHubApi.AppEntry e : entries) {
+            PackageInfo inst = installedInfo(Prefs.packageFor(this, e.owner + "/" + e.repo, e.repo));
+            b.append("- ").append(e.repo).append(" latest ").append(e.tag)
+                    .append(inst == null ? ", not installed" : ", installed " + inst.versionName).append('\n');
+        }
+        if (statusText != null) b.append("Status line: ").append(statusText.getText()).append('\n');
+        return b.toString();
     }
 
     private void openUrl(String url) {

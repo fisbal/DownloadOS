@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DownloadOS</title>
+<meta name="description" content="Every MartinB OS app, with the right download for your phone, tablet, PC or Mac.">
+<meta name="theme-color" content="#0A0A0E">
+<link rel="icon" href="icon.png">
+<style>
+  :root {
+    --bg: #0A0A0E; --card: #15151C; --line: #26262F; --gold: #D4AF37; --gold-soft: rgba(212,175,55,.2);
+    --text: #F2F2F5; --muted: #9A9AA6; --ok: #5FD38D;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background-image: radial-gradient(1200px 500px at 50% -200px, rgba(212,175,55,.12), transparent 70%);
+    min-height: 100vh;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 16px 48px; }
+  h1 { font-weight: 300; font-size: clamp(30px, 8vw, 44px); letter-spacing: .02em; margin: 0; }
+  h1 b { color: var(--gold); font-weight: 400; }
+  .sub { color: var(--muted); margin: 4px 0 18px; }
+  .hair { height: 1px; background: var(--gold-soft); margin: 0 0 18px; }
+  .device { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .device button {
+    font: inherit; font-weight: 600; color: var(--text); background: var(--card); border: 1px solid var(--line);
+    border-radius: 999px; padding: 9px 16px; cursor: pointer; min-height: 44px;
+  }
+  .device button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--bg); }
+  .status { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .apps { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); }
+  .app { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; min-width: 0; }
+  .app h2 { font-size: 18px; margin: 0; overflow-wrap: anywhere; }
+  .meta { color: var(--gold); font-size: 13px; margin-top: 2px; }
+  .desc { color: var(--muted); font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .links a {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px;
+    text-decoration: none; font-weight: 600; color: var(--text); border: 1px solid #3A3A45; background: var(--card);
+    white-space: nowrap;
+  }
+  .links a.main { background: var(--gold); border-color: var(--gold); color: var(--bg); }
+  .none { color: var(--muted); font-size: 13px; margin-top: 12px; }
+  .tip { margin-top: 22px; color: var(--muted); font-size: 13px; }
+  .tip a { color: var(--gold); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Download<b>OS</b></h1>
+  <p class="sub" data-t="sub">Every MartinB OS app, with the right download for your device.</p>
+  <div class="hair"></div>
+  <div class="device" role="group" aria-label="Device">
+    <button data-device="android">Android</button>
+    <button data-device="windows">Windows</button>
+    <button data-device="mac">Mac</button>
+    <button data-device="web" data-t="webBtn">Web</button>
+  </div>
+  <p class="status" id="status" data-t="loading">Looking for apps…</p>
+  <section class="apps" id="apps"></section>
+  <p class="tip" id="tip"></p>
+</main>
+<script>
+(() => {
+  const OWNER = 'fisbal';
+  const fr = (navigator.language || '').toLowerCase().startsWith('fr');
+  const T = {
+    sub: ['Every MartinB OS app, with the right download for your device.', 'Toutes les apps MartinB OS, avec le bon téléchargement pour ton appareil.'],
+    loading: ['Looking for apps…', 'Recherche des apps…'],
+    webBtn: ['Web', 'Web'],
+    open: ['Open', 'Ouvrir'],
+    download: ['Download', 'Télécharger'],
+    page: ['Release page', 'Page de la version'],
+    none: ['Not available for this device yet.', 'Pas encore disponible pour cet appareil.'],
+    count: [n => n + ' apps', n => n + ' apps'],
+    error: ["Can't reach GitHub right now. Try again in a few minutes.", 'GitHub est injoignable pour le moment. Réessaie dans quelques minutes.'],
+    tipAndroid: ['On Android, install <b>DownloadOS</b> first: it installs the other apps and keeps them all up to date.',
+                 'Sur Android, installe d’abord <b>DownloadOS</b> : il installe les autres apps et les garde à jour.'],
+    tipDesktop: ['Installed apps update themselves. You only download once.', 'Les apps installées se mettent à jour toutes seules. Tu ne télécharges qu’une fois.'],
+  };
+  const t = k => T[k][fr ? 1 : 0];
+  document.documentElement.lang = fr ? 'fr' : 'en';
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+
+  const ua = navigator.userAgent;
+  let device = /Android/i.test(ua) ? 'android' : /Windows/i.test(ua) ? 'windows'
+    : /Macintosh|Mac OS X/i.test(ua) && !/iPhone|iPad/i.test(ua) ? 'mac' : 'web';
+  try { device = localStorage.getItem('device') || device; } catch (e) {}
+
+  const pick = (assets, device) => {
+    const by = re => assets.filter(a => re.test(a.name));
+    if (device === 'android') {
+      const apks = by(/\.apk$/i);
+      return apks.find(a => !/arm64|x86|armeabi/i.test(a.name)) || apks[0];
+    }
+    if (device === 'windows') return by(/setup\.exe$/i)[0] || by(/\.msi$/i)[0] || by(/\.exe$/i)[0] || by(/windows.*\.zip$/i)[0];
+    if (device === 'mac') return by(/\.dmg$/i)[0] || by(/mac.*\.zip$/i)[0];
+    return null;
+  };
+  const size = b => b > 1e6 ? (b / 1e6).toFixed(0) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB';
+  const esc = s => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+  let apps = [];
+  function render() {
+    document.querySelectorAll('.device button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.device === device)));
+    const list = document.getElementById('apps');
+    list.innerHTML = apps.map(app => {
+      const a = pick(app.assets, device);
+      const web = app.web;
+      let links = '';
+      if (device === 'web') {
+        if (web) links += `<a class="main" href="${esc(web)}">${t('open')}</a>`;
+      } else if (a) {
+        links += `<a class="main" href="${esc(a.url)}">${t('download')} · ${size(a.size)}</a>`;
+        if (web) links += `<a href="${esc(web)}">Web</a>`;
+      }
+      links += `<a href="${esc(app.page)}">${t('page')}</a>`;
+      const has = device === 'web' ? !!web : !!a;
+      return `<article class="app"><h2>${esc(app.name)}</h2>
+        <div class="meta">${esc(app.tag)}${app.date ? ' · ' + esc(app.date) : ''}</div>
+        ${app.desc ? `<p class="desc">${esc(app.desc)}</p>` : ''}
+        ${has ? '' : `<p class="none">${t('none')}</p>`}
+        <div class="links">${links}</div></article>`;
+    }).join('');
+    document.getElementById('tip').innerHTML = device === 'android' ? t('tipAndroid') : t('tipDesktop');
+    if (apps.length) document.getElementById('status').textContent = t('count')(apps.length) + ' · ' + OWNER;
+  }
+  document.querySelectorAll('.device button').forEach(b => b.addEventListener('click', () => {
+    device = b.dataset.device;
+    try { localStorage.setItem('device', device); } catch (e) {}
+    render();
+  }));
+
+  async function load() {
+    try {
+      const c = JSON.parse(localStorage.getItem('apps') || 'null');
+      if (c && Date.now() - c.at < 10 * 60 * 1000) return c.apps;
+    } catch (e) {}
+    const gh = p => fetch('https://api.github.com/' + p, { headers: { Accept: 'application/vnd.github+json' } })
+      .then(r => r.ok ? r.json() : null);
+    const repos = (await gh(`users/${OWNER}/repos?per_page=100&sort=updated`)) || [];
+    if (!repos.length) throw new Error('no repos');
+    const found = await Promise.all(repos.filter(r => !r.fork && !r.archived).map(async r => {
+      const rel = await gh(`repos/${OWNER}/${r.name}/releases/latest`);
+      if (!rel || !rel.assets) return null;
+      const assets = rel.assets.map(a => ({ name: a.name, url: a.browser_download_url, size: a.size }));
+      const web = r.homepage || (r.has_pages ? `https://${OWNER}.github.io/${r.name}/` : '');
+      if (!assets.some(a => /\.(apk|exe|msi|dmg)$/i.test(a.name)) && !web) return null;
+      return { name: r.name, desc: r.description, tag: rel.tag_name, date: (rel.published_at || '').slice(0, 10),
+               page: rel.html_url, assets, web };
+    }));
+    const out = found.filter(Boolean).sort((a, b) => (a.name === 'DownloadOS' ? -1 : b.name === 'DownloadOS' ? 1 : 0));
+    try { localStorage.setItem('apps', JSON.stringify({ at: Date.now(), apps: out })); } catch (e) {}
+    return out;
+  }
+
+  render();
+  load().then(a => { apps = a; render(); })
+    .catch(() => { document.getElementById('status').textContent = t('error'); });
+})();
+</script>
+</body>
+</html>

@@ -21,6 +21,10 @@ final class Prefs {
         sp(c).edit().putString("owner", owner).putString("token", token).remove("cache").apply();
     }
 
+    /** The user's own Claude API key for the copilot; stays on this phone. */
+    static String claudeKey(Context c) { return sp(c).getString("claudeKey", ""); }
+    static void setClaudeKey(Context c, String key) { sp(c).edit().putString("claudeKey", key).apply(); }
+
     static String cache(Context c) { return sp(c).getString("cache", ""); }
     static long cacheTime(Context c) { return sp(c).getLong("cacheTime", 0); }
 
