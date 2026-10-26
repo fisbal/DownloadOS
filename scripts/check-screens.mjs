@@ -5,7 +5,6 @@ import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, extname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { checkZoomRotationSettings, checkRotationAndPinch } from './zoom-rotation.mjs';
 
 const dir = resolve(process.argv[2] || 'web');
@@ -65,7 +64,7 @@ for (const [label, [width, height]] of Object.entries(sizes)) {
 }
 // Zoom and rotation, required in every app: nothing blocks pinch zoom or locks the orientation,
 // and a phone and a tablet turned sideways and back re-fit every time.
-failures.push(...checkZoomRotationSettings(fileURLToPath(new URL('..', import.meta.url))));
+failures.push(...checkZoomRotationSettings(resolve(dir, '..')));
 const turned = await checkRotationAndPinch(browser, base, { prepare: async page => { await page.route('https://api.github.com/**', route => { const m = new URL(route.request().url()).pathname.match(/^\/repos\/fisbal\/([^/]+)\/releases\/latest$/); route.fulfill({ json: m ? release(m[1]) : repos }); }); await page.reload(); await page.waitForSelector('.app'); } });
 failures.push(...turned.problems);
 await browser.close();
