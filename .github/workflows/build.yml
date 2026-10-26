@@ -1,0 +1,159 @@
+name: Build DownloadOS
+
+# Every pull request: Android tests (every screen size) + APK build + web page screen check.
+# Every push to main: the same, then a signed APK release v1.0.N and the web page on GitHub Pages.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  android:
+    name: Android app (tests on every screen size + APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      # The release key lives only in GitHub secrets. Pull requests build with the debug key and are never published.
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.DOWNLOADOS_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/downloados.jks
+          elif [ "$PUBLISH" = "true" ]; then
+            echo "::error::DOWNLOADOS_KEYSTORE_B64 is not set. Add the 3 DownloadOS secrets (Settings > Secrets and variables > Actions) before releasing."
+            exit 1
+          else
+            echo "::notice::No release key on this build: the APK is signed with the debug key and is not published."
+          fi
+
+      - name: Test on every screen size, then build the APK
+        shell: bash
+        working-directory: android
+        env:
+          DOWNLOADOS_KEYSTORE_PASSWORD: ${{ secrets.DOWNLOADOS_KEYSTORE_PASSWORD }}
+          DOWNLOADOS_KEY_PASSWORD: ${{ secrets.DOWNLOADOS_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          gradle testDebugUnitTest assembleRelease --no-daemon --stacktrace 2>&1 | tee ../build.log
+
+      - name: Screen test report
+        if: failure()
+        run: |
+          for f in android/app/build/test-results/testDebugUnitTest/*.xml; do
+            grep -A12 "<failure" "$f" | head -60 || true
+          done
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk DownloadOS.apk
+
+      - name: Keep the APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DownloadOS-apk
+          path: DownloadOS.apk
+
+      - name: Report build failure
+        if: failure() && env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Errors"; echo '```'
+            grep -n -E "error:|e: |FAILED|What went wrong|Exception" build.log | head -80 || true
+            echo '```'; echo "## Tail"; echo '```'
+            tail -c 30000 build.log || echo "no log"
+            echo '```'
+          } > report.md
+          gh release delete build-failed -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create build-failed --prerelease --title "Build failed #${{ github.run_number }}" --notes-file report.md -R "$GITHUB_REPOSITORY"
+
+  web:
+    name: Web download page (every screen size)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check phones, tablets, PC and Mac sizes
+        run: |
+          mkdir -p /tmp/pw && cd /tmp/pw && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+          cp "$GITHUB_WORKSPACE/scripts/check-screens.mjs" /tmp/pw/
+          node /tmp/pw/check-screens.mjs "$GITHUB_WORKSPACE/web"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DownloadOS-web
+          path: web
+
+  release:
+    name: Publish (main only)
+    needs: [android, web]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DownloadOS-apk
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: DownloadOS-web
+          path: site
+
+      - name: Publish a download link (GitHub Release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: DownloadOS 1.0.${{ github.run_number }}
+          make_latest: true
+          files: DownloadOS.apk
+          body: |
+            **DownloadOS** — l'installateur d'APK de MartinB OS / the MartinB OS APK installer.
+
+            **Installer / Install**
+            1. Touche **DownloadOS.apk** ci-dessous / Tap **DownloadOS.apk** below.
+            2. Ouvre le fichier ; si Android le demande, autorise ton navigateur à *installer des applis inconnues*.
+            3. **Installer** → **Ouvrir**.
+
+            Ensuite, toutes tes apps (Office In 1, ProDFOS, MarbleOS…) s'installent et se mettent à jour depuis DownloadOS — y compris DownloadOS lui-même.
+            Then all your apps install and update from DownloadOS, including DownloadOS itself.
+
+            **Toutes les apps, pour chaque appareil / Every app, for every device**: https://fisbal.github.io/DownloadOS/
+            Source code: the zip and tar.gz below.
+
+      - name: Deploy the web page to the gh-pages branch
+        run: |
+          cd site
+          touch .nojekyll
+          git init -q -b gh-pages
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" add -A
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -qm "Web page for ${{ github.sha }}"
+          git push -qf https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} HEAD:gh-pages
+
+      - name: Clear old failure report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete build-failed -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
