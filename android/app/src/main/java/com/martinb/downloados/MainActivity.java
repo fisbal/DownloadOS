@@ -148,12 +148,78 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
         super.onDestroy();
     }
 
+    // =================================================================== gold window bar
+    // Same bar as every MartinB app: logo + name, then minimize / full screen / close.
+
+    private boolean immersive = false;
+    private android.widget.ImageButton maxButton;
+
+    private View windowBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setBackgroundColor(Color.parseColor("#0B0A08"));
+        bar.setPadding(dp(12), 0, dp(2), 0);
+
+        android.widget.ImageView icon = new android.widget.ImageView(this);
+        icon.setImageResource(R.mipmap.ic_launcher);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(24), dp(24));
+        ilp.rightMargin = dp(10);
+        bar.addView(icon, ilp);
+
+        TextView name = new TextView(this);
+        android.text.SpannableString brand = new android.text.SpannableString("DownloadOS");
+        brand.setSpan(new android.text.style.ForegroundColorSpan(Color.parseColor("#D4AD62")), 8, 10, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        name.setText(brand);
+        name.setTextColor(Color.parseColor("#F3EFE6"));
+        name.setTextSize(16);
+        name.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
+        name.setSingleLine(true);
+        bar.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        bar.addView(barButton(R.drawable.mb_min, t("Réduire", "Minimize"), v -> moveTaskToBack(true)));
+        maxButton = barButton(R.drawable.mb_max, t("Plein écran", "Full screen"), v -> { immersive = !immersive; applyImmersive(); });
+        bar.addView(maxButton);
+        bar.addView(barButton(R.drawable.mb_close, t("Fermer", "Close"), v -> finishAndRemoveTask()));
+        return bar;
+    }
+
+    private android.widget.ImageButton barButton(int drawable, String label, View.OnClickListener onClick) {
+        android.widget.ImageButton b = new android.widget.ImageButton(this);
+        b.setImageResource(drawable);
+        b.setContentDescription(label);
+        b.setScaleType(android.widget.ImageView.ScaleType.CENTER);
+        android.util.TypedValue tv = new android.util.TypedValue();
+        if (getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)) b.setBackgroundResource(tv.resourceId);
+        else b.setBackgroundColor(Color.TRANSPARENT);
+        b.setOnClickListener(onClick);
+        b.setLayoutParams(new LinearLayout.LayoutParams(dp(46), dp(44)));
+        return b;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applyImmersive() {
+        View decor = getWindow().getDecorView();
+        decor.setSystemUiVisibility(immersive
+                ? View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
+                  | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                : View.SYSTEM_UI_FLAG_VISIBLE);
+        if (maxButton != null) maxButton.setImageResource(immersive ? R.drawable.mb_restore : R.drawable.mb_max);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && immersive) applyImmersive();
+    }
+
     // =================================================================== UI building
 
     private View buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
+        root.addView(windowBar(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
 
         // Header -----------------------------------------------------------
         LinearLayout header = new LinearLayout(this);
