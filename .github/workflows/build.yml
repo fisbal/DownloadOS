@@ -73,6 +73,10 @@ jobs:
           for f in android/app/build/test-results/testDebugUnitTest/*.xml; do
             grep -A12 "<failure" "$f" | head -60 || true
           done
+          # Also as annotations, so the failure shows on the pull request without opening the log.
+          grep -h -o '<failure message="[^"]*' android/app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null \
+            | sed 's/<failure message="//; s/&#10;/ | /g; s/&quot;/"/g' | cut -c1-900 | head -20 | sed 's/^/::error title=Screen test::/' || true
+          grep -E "error:|e: |What went wrong" build.log | head -10 | sed 's/^/::error title=Build::/' || true
 
       - name: Name the APK
         run: cp android/app/build/outputs/apk/release/app-release.apk DownloadOS.apk
