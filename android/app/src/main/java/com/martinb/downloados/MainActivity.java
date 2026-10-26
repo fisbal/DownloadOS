@@ -274,7 +274,10 @@ public class MainActivity extends Activity implements InstallReceiver.Listener {
             final int idx = i;
             TextView tab = label(names[i], 14, TEXT, true);
             tab.setGravity(Gravity.CENTER);
-            tab.setPadding(dp(8), dp(10), dp(8), dp(10));
+            tab.setPadding(dp(4), dp(10), dp(4), dp(10));
+            // One line always: with large system text on a small phone, the label shrinks instead of wrapping.
+            tab.setMaxLines(1);
+            tab.setAutoSizeTextTypeUniformWithConfiguration(10, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
             tab.setOnClickListener(v -> showTab(idx));
             LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
             tp.setMargins(dp(4), 0, dp(4), 0);
