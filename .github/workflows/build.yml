@@ -58,6 +58,12 @@ jobs:
           set -o pipefail
           gradle testDebugUnitTest assembleRelease --no-daemon --stacktrace 2>&1 | tee ../build.log
 
+      - name: Count the screen tests
+        run: |
+          n=$(grep -ho 'tests="[0-9]*"' android/app/build/test-results/testDebugUnitTest/*.xml | grep -o '[0-9]*' | paste -sd+ | bc)
+          echo "::notice::Screen tests passed: ${n:-0}"
+          [ "${n:-0}" -ge 10 ] || { echo "::error::Expected at least 10 screen tests, found ${n:-0}"; exit 1; }
+
       - name: Screen test report
         if: failure()
         run: |
