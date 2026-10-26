@@ -71,6 +71,45 @@ public class ScreensTest {
         assertTrue(qualifiers + ":\n" + String.join("\n", problems), problems.isEmpty());
     }
 
+    /**
+     * Turning the device (required in every app): an upright phone or tablet is turned sideways and
+     * back without restarting the app, with the system text size set larger (Android's zoom for
+     * apps), and every tab must still fit each time.
+     */
+    @Test
+    public void turnsSidewaysAndBackWithLargeText() throws Exception {
+        if (!qualifiers.endsWith("-port")) return;
+        RuntimeEnvironment.setQualifiers(qualifiers);
+        RuntimeEnvironment.setFontScale(1.3f);
+        java.util.Locale.setDefault(new java.util.Locale(qualifiers.substring(0, 2)));
+        seedApps(RuntimeEnvironment.getApplication());
+
+        String[] parts = qualifiers.substring(3).split("-");  // w411dp, h891dp, port
+        String upright = "+" + parts[0] + "-" + parts[1] + "-port";
+        String sideways = "+w" + parts[1].substring(1) + "-h" + parts[0].substring(1) + "-land";
+
+        ActivityController<MainActivity> ctl = Robolectric.buildActivity(MainActivity.class).setup();
+        MainActivity a = ctl.get();
+        List<String> problems = new ArrayList<>();
+        java.lang.reflect.Method show = MainActivity.class.getDeclaredMethod("showTab", int.class);
+        show.setAccessible(true);
+        for (String turn : new String[]{upright, sideways, upright}) {
+            RuntimeEnvironment.setQualifiers(turn);
+            ctl.configurationChange(RuntimeEnvironment.getApplication().getResources().getConfiguration());
+            // The manifest handles orientation itself, so the same activity must re-fit, not restart.
+            assertTrue(qualifiers + ": the app restarted when turned", ctl.get() == a);
+            View root = a.getWindow().getDecorView();
+            for (int tab = 0; tab < 3; tab++) {
+                show.invoke(a, tab);
+                layout(root);
+                check(root, root.getWidth(), turn.substring(1) + " large text, tab " + tab, problems);
+            }
+        }
+        ctl.pause().stop().destroy();
+        RuntimeEnvironment.setFontScale(1.0f);
+        assertTrue(qualifiers + " turned:\n" + String.join("\n", problems), problems.isEmpty());
+    }
+
     /** A cached list of apps with long names, so no network is needed. */
     private static void seedApps(Context c) throws Exception {
         JSONArray arr = new JSONArray();
